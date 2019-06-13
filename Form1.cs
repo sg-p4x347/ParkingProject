@@ -18,38 +18,71 @@ namespace ParkingProject
 			//panel1.BackgroundImage = Transform(Empty,);
 			//Matrix best = MinimizeDifference(Scale(empty,0.5), Scale(empty2,0.5));
 			//var after = Difference(Crop(empty, cropPercent), Crop(Transform(empty2, best), cropPercent));
-			Baseline = Scale(Bitmap.FromFile("./data/baseline.jpg") as Bitmap,256);
-			Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_left.jpg") as Bitmap,256)));
-			Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_middle.jpg") as Bitmap, 256)));
-			Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_right.jpg") as Bitmap, 256)));
-			
-			List<Bitmap> source = new List<Bitmap>();
-			source.Add(Scale(Bitmap.FromFile("./data/car_left.jpg") as Bitmap, 256));
-			source.Add(Scale(Bitmap.FromFile("./data/car_middle.jpg") as Bitmap, 256));
-			source.Add(Scale(Bitmap.FromFile("./data/car_right.jpg") as Bitmap, 256));
+			//Baseline = Scale(Bitmap.FromFile("./data/baseline.jpg") as Bitmap,256);
+			//Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_left.jpg") as Bitmap,256)));
+			//Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_middle.jpg") as Bitmap, 256)));
+			//Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_right.jpg") as Bitmap, 256)));
 
-			foreach (Bitmap s in source)
-			{
-				flowLayoutPanel1.Controls.Add(CreatePanel(s));
+			//List<Bitmap> source = new List<Bitmap>();
+			//source.Add(Scale(Bitmap.FromFile("./data/car_left.jpg") as Bitmap, 256));
+			//source.Add(Scale(Bitmap.FromFile("./data/car_middle.jpg") as Bitmap, 256));
+			//source.Add(Scale(Bitmap.FromFile("./data/car_right.jpg") as Bitmap, 256));
 
-				int matchIndex = FindMatchingMask(s);
-				if (matchIndex != -1)
-				{
-					var mask = Masks[matchIndex];
-					flowLayoutPanel1.Controls.Add(CreatePanel(mask));
-				}
-			}
-			
-				flowLayoutPanel1.Controls.Add(CreatePanel(Transform(Baseline, new Matrix(new double[,]
-			{
-				{.25,0.2,70},
-				{0.1,.5,70 },
-				{0,0,1 }
-			}))));
+			//foreach (Bitmap s in source)
+			//{
+			//	flowLayoutPanel1.Controls.Add(CreatePanel(s));
 
+			//	int matchIndex = FindMatchingMask(s);
+			//	if (matchIndex != -1)
+			//	{
+			//		var mask = Masks[matchIndex];
+			//		flowLayoutPanel1.Controls.Add(CreatePanel(mask));
+			//	}
+			//}
+			//Matrix inverse;
+			//if (new Matrix(new double[,]
+			//	{
+			//		{.15344,-.80841,125},
+			//		{-0.00921,0.1,3 },
+			//		{-0.00014,-.00538,1 }
+			//	}).Inverse(out inverse))
+			//{
+			//	flowLayoutPanel1.Controls.Add(CreatePanel(Transform(Baseline, inverse)));
+			//}
+			//var test = Scale(Bitmap.FromFile("./data/empty.bmp") as Bitmap, 256);
+			//var baseline = Scale(Bitmap.FromFile("./data/occupied.bmp") as Bitmap, 256);
+
+			//Matrix result = MinimizeDifference(Scale(baseline, 64), Scale(test, 64));
+
+			//flowLayoutPanel1.Controls.Add(CreatePanel(Difference(baseline, Transform(test, result))));
 
 			//Matrix product = inverse * test;
+			backgroundWorker1.DoWork += BackgroundWorker1_DoWork;
+			backgroundWorker1.ProgressChanged += BackgroundWorker1_ProgressChanged;
+			backgroundWorker1.RunWorkerAsync();
 		}
+
+		private void BackgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)
+		{
+			progressBar1.Value = e.ProgressPercentage;
+			flowLayoutPanel1.Controls.Add(e.UserState as Label);
+		}
+
+		private void BackgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
+		{
+			Classification.ParkingSpaceClassifier classifier = new Classification.ParkingSpaceClassifier();
+			int i = 0;
+			foreach (var error in classifier.Error)
+			{
+				Label label = new Label();
+				label.Text = $"Epoch {error.Item1}: {error.Item2}%";
+				i++;
+				backgroundWorker1.ReportProgress((int)(100 * (double)i / (double)classifier.Iterations), label);
+				classifier.Save();
+			}
+			
+		}
+
 		private Panel CreatePanel(Bitmap source)
 		{
 			Panel panel = new Panel();
@@ -60,7 +93,7 @@ namespace ParkingProject
 		}
 		private Bitmap Baseline { get; set; }
 		private List<Bitmap> Masks { get; set; } = new List<Bitmap>();
-		private const double cropPercent = 0.9;
+		private const double cropPercent = 1;
 		private int FindMatchingMask(Bitmap source)
 		{
 			var diff = Difference(Baseline, source);
@@ -165,10 +198,10 @@ namespace ParkingProject
 				{
 					// Sample source
 					Vector3 sourcePoint = matrix * new Vector3((double)x, (double)y ,1);
-					int sx = (int)Math.Round(sourcePoint.X);
-					int sy = (int)Math.Round(sourcePoint.Y);
+					int sx = (int)Math.Round(sourcePoint.X / sourcePoint.Z);
+					int sy = (int)Math.Round(sourcePoint.Y / sourcePoint.Z);
 					if (sx >= 0 && sx < source.Width && sy >= 0 && sy < source.Height)
-						result.SetPixel(sx, sy, source.GetPixel(x, y));
+						result.SetPixel(x, y, source.GetPixel(sx, sy));
 				}
 			}
 			//for (int x = 0; x < result.Width; x++)
@@ -187,8 +220,8 @@ namespace ParkingProject
 		}
 		private Matrix MinimizeDifference(Bitmap reference, Bitmap b)
 		{
-			const int iterations = 15;
-			double[] deviations = new double[] { 0.5, -0.5 };
+			const int iterations = 25;
+			double[] deviations = new double[] { 10, -10 };
 			
 			Bitmap referenceCropped = Crop(reference, cropPercent);
 			Matrix best = Matrix.Identity;
@@ -224,13 +257,13 @@ namespace ParkingProject
 						deviations[d] *= 0.5;
 					}
 				}
-				else
-				{
-					//for (int d = 0; d < deviations.Length; d++)
-					//{
-					//	deviations[d] *= 2;
-					//}
-				}
+				//else
+				//{
+				//	for (int d = 0; d < deviations.Length; d++)
+				//	{
+				//		deviations[d] *= 2;
+				//	}
+				//}
 			}
 			return best;
 		}
