@@ -9,6 +9,109 @@ namespace ParkingProject
 {
 	static class ExtensionMethods
 	{
+		static public List<Point> FindIslands(this Bitmap source, int count, int thresholdArea)
+		{
+			int gridSize = (int)Math.Floor(Math.Sqrt((double)thresholdArea));
+			List<HashSet<Point>> islands = new List<HashSet<Point>>();
+			for (int level = 255; level >= 0; level--)
+			{
+				islands.Clear();
+				for (int x = 0; x < source.Width; x+= gridSize)
+				{
+					for (int y = 0; y < source.Height; y+= gridSize)
+					{
+						Point point = new Point(x, y);
+						if (!islands.Any(island => island.Contains(point)))
+						{
+							int value = source.GetPixel(x, y).R;
+							if (value >= level)
+							{
+								HashSet<Point> island = new HashSet<Point>();
+								Queue<Point> newPoints = new Queue<Point>();
+								newPoints.Enqueue(point);
+								while (newPoints.Count > 0)
+								{
+									var seed = newPoints.Dequeue();
+									if (seed.X >= 0 && seed.X < source.Width && seed.Y >= 0 && seed.Y < source.Height && source.GetPixel(seed.X,seed.Y).R >= level) {
+										if (!island.Contains(seed))
+										{
+											island.Add(seed);
+											newPoints.Enqueue(new Point(seed.X, seed.Y - 1));
+											newPoints.Enqueue(new Point(seed.X - 1, seed.Y));
+											newPoints.Enqueue(new Point(seed.X + 1, seed.Y));
+											newPoints.Enqueue(new Point(seed.X, seed.Y + 1));
+										} else
+										{
+											var neighbor = islands.Find(i => i.Contains(seed));
+											if (neighbor !=  null)
+											{
+												// Union islands
+												islands.Remove(neighbor);
+												island.UnionWith(neighbor);
+											}
+										}
+									}
+								}
+								islands.Add(island);
+								if (islands.Count(i => i.Count >= thresholdArea) >= count)
+									goto done;
+							}
+						}
+					}
+				}
+
+			}
+			done:;
+			List<Point> points = new List<Point>();
+			foreach (var island in islands.Where(i => i.Count >= thresholdArea))
+			{
+				Point average = new Point(0, 0);
+				foreach (var point in island)
+				{
+					average.X += point.X;
+					average.Y += point.Y;
+				}
+				average.X /= island.Count;
+				average.Y /= island.Count;
+				points.Add(average);
+			}
+			return points;
+		}
+		// Normalizes the green channel as a percent of the total
+		static public Bitmap GreenShift(this Bitmap source)
+		{
+			Bitmap result = new Bitmap(source.Width, source.Height);
+			for (int x = 0; x < result.Width; x++)
+			{
+				for (int y = 0; y < result.Height; y++)
+				{
+					Color color = source.GetPixel(x, y);
+					int g = (int)Math.Min(255, (double)(color.G + color.B) * 255 / (color.R + color.B + color.G));
+					result.SetPixel(x, y, Color.FromArgb(g,g,g));
+				}
+			}
+			return result;
+		}
+		static public Bitmap Posturize(this Bitmap source, int threshold = 382)
+		{
+			Bitmap result = new Bitmap(source.Width, source.Height);
+			for (int x = 0; x < source.Width; x++)
+			{
+				for (int y = 0; y < source.Height; y++)
+				{
+					var pixel = source.GetPixel(x, y);
+					if (pixel.R + pixel.G + pixel.B > threshold)
+					{
+						result.SetPixel(x, y, Color.White);
+					}
+					else
+					{
+						result.SetPixel(x, y, Color.Black);
+					}
+				}
+			}
+			return result;
+		}
 		static public Bitmap Difference(this Bitmap a, Bitmap b)
 		{
 			Bitmap result = new Bitmap(a.Width, a.Height);

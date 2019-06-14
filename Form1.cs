@@ -18,27 +18,27 @@ namespace ParkingProject
 			//panel1.BackgroundImage = Transform(Empty,);
 			//Matrix best = MinimizeDifference(Scale(empty,0.5), Scale(empty2,0.5));
 			//var after = Difference(Crop(empty, cropPercent), Crop(Transform(empty2, best), cropPercent));
-			//Baseline = Scale(Bitmap.FromFile("./data/baseline.jpg") as Bitmap,256);
-			//Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_left.jpg") as Bitmap,256)));
-			//Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_middle.jpg") as Bitmap, 256)));
-			//Masks.Add(Difference(Baseline,Scale(Bitmap.FromFile("./data/mask_right.jpg") as Bitmap, 256)));
+			Baseline = Scale(Bitmap.FromFile("./data/baseline.jpg") as Bitmap, 256);
+			Masks.Add(Difference(Baseline, Scale(Bitmap.FromFile("./data/mask_left.jpg") as Bitmap, 256)));
+			Masks.Add(Difference(Baseline, Scale(Bitmap.FromFile("./data/mask_middle.jpg") as Bitmap, 256)));
+			Masks.Add(Difference(Baseline, Scale(Bitmap.FromFile("./data/mask_right.jpg") as Bitmap, 256)));
 
-			//List<Bitmap> source = new List<Bitmap>();
-			//source.Add(Scale(Bitmap.FromFile("./data/car_left.jpg") as Bitmap, 256));
-			//source.Add(Scale(Bitmap.FromFile("./data/car_middle.jpg") as Bitmap, 256));
-			//source.Add(Scale(Bitmap.FromFile("./data/car_right.jpg") as Bitmap, 256));
+			List<Bitmap> source = new List<Bitmap>();
+			source.Add(Scale(Bitmap.FromFile("./data/car_left.jpg") as Bitmap, 256));
+			source.Add(Scale(Bitmap.FromFile("./data/car_middle.jpg") as Bitmap, 256));
+			source.Add(Scale(Bitmap.FromFile("./data/car_right.jpg") as Bitmap, 256));
 
-			//foreach (Bitmap s in source)
-			//{
-			//	flowLayoutPanel1.Controls.Add(CreatePanel(s));
+			foreach (Bitmap s in source)
+			{
+				flowLayoutPanel1.Controls.Add(CreatePanel(s));
 
-			//	int matchIndex = FindMatchingMask(s);
-			//	if (matchIndex != -1)
-			//	{
-			//		var mask = Masks[matchIndex];
-			//		flowLayoutPanel1.Controls.Add(CreatePanel(mask));
-			//	}
-			//}
+				int matchIndex = FindMatchingMask(s);
+				if (matchIndex != -1)
+				{
+					var mask = Masks[matchIndex];
+					flowLayoutPanel1.Controls.Add(CreatePanel(mask));
+				}
+			}
 			//Matrix inverse;
 			//if (new Matrix(new double[,]
 			//	{
@@ -57,9 +57,59 @@ namespace ParkingProject
 			//flowLayoutPanel1.Controls.Add(CreatePanel(Difference(baseline, Transform(test, result))));
 
 			//Matrix product = inverse * test;
-			backgroundWorker1.DoWork += BackgroundWorker1_DoWork;
-			backgroundWorker1.ProgressChanged += BackgroundWorker1_ProgressChanged;
-			backgroundWorker1.RunWorkerAsync();
+			//backgroundWorker1.DoWork += BackgroundWorker1_DoWork;
+			//backgroundWorker1.ProgressChanged += BackgroundWorker1_ProgressChanged;
+			//backgroundWorker1.RunWorkerAsync();
+			var baseline = Scale(Bitmap.FromFile("./data/Feed/20190613_215917.jpg") as Bitmap, 256);
+			flowLayoutPanel1.Controls.Add(CreatePanel(baseline));
+			var heightMap = baseline.GreenShift();
+			var points = heightMap.FindIslands(4, 10);
+			var temp = points[2];
+			points.Remove(temp);
+			points.Add(temp);
+			Matrix a = new Matrix(new double[,]
+			{
+				{ points[0].X,points[1].X,points[2].X},
+				{points[0].Y,points[1].Y,points[2].Y },
+				{1,1,1 }
+			});
+			Matrix aInverse;
+			if (a.Inverse(out aInverse))
+			{
+				Vector3 co = aInverse * new Vector3(points[3].X, points[3].Y, 1);
+				a.ScaleColumn(0, co.X);
+				a.ScaleColumn(1, co.Y);
+				a.ScaleColumn(2, co.Z);
+			}
+			a.Inverse(out aInverse);
+
+			var destPoints = new List<Point>
+			{
+				new Point(0,0),
+				new Point(0, heightMap.Height-1),
+				new Point(heightMap.Width-1,heightMap.Height-1),
+				new Point(heightMap.Width-1,0),
+			};
+			Matrix b = new Matrix(new double[,]
+			{
+				{ destPoints[0].X,destPoints[1].X,destPoints[2].X},
+				{destPoints[0].Y,destPoints[1].Y,destPoints[2].Y },
+				{1,1,1 }
+			});
+			Matrix bInverse;
+			if (b.Inverse(out bInverse))
+			{
+				Vector3 co = bInverse * new Vector3(destPoints[3].X, destPoints[3].Y, 1);
+				b.ScaleColumn(0, co.X);
+				b.ScaleColumn(1, co.Y);
+				b.ScaleColumn(2, co.Z);
+			}
+			Matrix c = b * aInverse;
+			Matrix transform;
+			c.Inverse(out transform);
+			Bitmap map = new Bitmap(heightMap.Width, heightMap.Height);
+			map.Fill(Color.Blue);
+			flowLayoutPanel1.Controls.Add(CreatePanel(Transform(baseline, transform)));
 		}
 
 		private void BackgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)

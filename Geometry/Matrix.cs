@@ -20,6 +20,13 @@ namespace ParkingProject.Geometry
 				}
 			}
 		}
+		public void ScaleColumn(int j, double scalar)
+		{
+			for (int i = 0; i < 3; i++)
+			{
+				Set(i, j, Get(i, j) * scalar);
+			}
+		}
 		public Matrix(double[,] d)
 		{
 			data = d;
